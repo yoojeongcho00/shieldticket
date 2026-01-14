@@ -1,0 +1,347 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>인증/티켓 카운터</title>
+  <style>
+    :root{
+      --bg:#0b0f17; --panel:#121a27; --text:#e8eefc; --muted:#a9b4cc;
+      --line:rgba(255,255,255,.10); --accent:#6aa6ff; --danger:#ff6a6a; --ok:#63d08d;
+      --shadow:0 10px 30px rgba(0,0,0,.35); --radius:14px;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Apple SD Gothic Neo", "Noto Sans KR", Arial;
+    }
+    body{
+      margin:0; min-height:100svh; display:grid; place-items:center; padding:24px; color:var(--text);
+      background:
+        radial-gradient(1200px 700px at 20% 0%, rgba(106,166,255,.20), transparent 60%),
+        radial-gradient(900px 500px at 90% 30%, rgba(99,208,141,.18), transparent 60%),
+        var(--bg);
+    }
+    .app{
+      width:min(860px,100%);
+      border:1px solid var(--line);
+      border-radius:var(--radius);
+      box-shadow:var(--shadow);
+      overflow:hidden;
+      background:linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02));
+    }
+    header{
+      padding:18px 20px;
+      border-bottom:1px solid var(--line);
+      display:flex; gap:12px; justify-content:space-between; align-items:center;
+    }
+    header h1{margin:0; font-size:16px;}
+    header .sub{font-size:12px; color:var(--muted); margin-top:4px;}
+    .pill{
+      display:inline-flex; align-items:center; gap:8px;
+      padding:6px 10px; border-radius:999px;
+      border:1px solid var(--line); background:rgba(255,255,255,.03);
+      font-size:12px; color:var(--muted);
+    }
+    .dot{width:8px; height:8px; border-radius:999px; background:var(--ok);}
+    .grid{display:grid; grid-template-columns:1.2fr .8fr; gap:14px; padding:14px;}
+    @media (max-width:760px){ .grid{grid-template-columns:1fr;} }
+    .card{
+      background:rgba(18,26,39,.62);
+      border:1px solid var(--line);
+      border-radius:var(--radius);
+      padding:16px;
+    }
+    .card h2{margin:0 0 10px; font-size:13px; color:var(--muted); font-weight:600;}
+    .stats{display:grid; grid-template-columns:repeat(2,1fr); gap:10px;}
+    .stat{border:1px solid var(--line); border-radius:12px; padding:12px; background:rgba(255,255,255,.02);}
+    .label{font-size:12px; color:var(--muted);}
+    .value{margin-top:6px; font-size:22px; font-weight:800;}
+    .value small{font-size:12px; font-weight:600; color:var(--muted); margin-left:8px;}
+    .row{display:flex; flex-wrap:wrap; gap:10px; margin-top:12px;}
+    button{
+      appearance:none; border:1px solid var(--line);
+      background:rgba(255,255,255,.04); color:var(--text);
+      padding:10px 12px; border-radius:12px;
+      cursor:pointer; font-weight:800; font-size:13px;
+    }
+    button:hover{background:rgba(255,255,255,.06); border-color:rgba(255,255,255,.18);}
+    button:active{transform:translateY(1px);}
+    button:disabled{opacity:.55; cursor:not-allowed;}
+    button.primary{border-color:rgba(106,166,255,.35); background:rgba(106,166,255,.12);}
+    button.danger{border-color:rgba(255,106,106,.35); background:rgba(255,106,106,.12);}
+    .note{margin-top:10px; font-size:12px; color:var(--muted); line-height:1.45;}
+    .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;}
+    input[type="text"]{
+      width:100%;
+      background:rgba(255,255,255,.02);
+      border:1px solid var(--line);
+      color:var(--text);
+      padding:10px 12px;
+      border-radius:12px;
+      outline:none;
+    }
+    input[type="text"]:focus{border-color:rgba(106,166,255,.40);}
+    .inputrow{display:grid; grid-template-columns:1fr 120px; gap:10px; margin-top:10px;}
+    a{color:var(--accent); text-decoration:none;}
+    a:hover{text-decoration:underline;}
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <div>
+        <h1>인증/티켓 카운터</h1>
+        <div class="sub">인증 5회당 티켓 1장 · 티켓 사용 시 -1 및 사용일시 기록</div>
+      </div>
+      <div class="pill">
+        <span class="dot"></span>
+        <span>로컬 저장</span>
+      </div>
+    </header>
+
+    <div class="grid">
+      <section class="card">
+        <h2>현재 상태</h2>
+        <div class="stats">
+          <div class="stat">
+            <div class="label">총 인증 횟수</div>
+            <div class="value"><span id="totalAuth">0</span></div>
+          </div>
+          <div class="stat">
+            <div class="label">현재 인증 횟수 (0~4)</div>
+            <div class="value"><span id="currentAuth">0</span><small>mod 5</small></div>
+          </div>
+          <div class="stat">
+            <div class="label">누적 티켓 수</div>
+            <div class="value"><span id="earnedTickets">0</span><small>floor(total/5)</small></div>
+          </div>
+          <div class="stat">
+            <div class="label">남은 티켓 수</div>
+            <div class="value"><span id="remainingTickets">0</span></div>
+          </div>
+        </div>
+
+        <div class="row">
+          <button class="primary" id="btnAuth">인증 +1</button>
+          <button class="danger" id="btnUse" disabled>티켓 사용 -1</button>
+          <button id="btnUndo" title="방금 한 작업을 1회 되돌립니다">실행 취소</button>
+        </div>
+
+        <div class="note">
+          마지막 티켓 사용일시: <span class="mono" id="lastUsed">없음</span><br/>
+          저장 위치: <span class="mono">localStorage</span> (기기/브라우저별로 유지)
+        </div>
+      </section>
+
+      <aside class="card">
+        <h2>옵션</h2>
+
+        <div class="label">프로필 키(선택)</div>
+        <div class="note">
+          같은 기기에서 항목별로 분리 저장하고 싶으면 키를 다르게 쓰세요.
+          예: <span class="mono">홍길동</span>, <span class="mono">계정1</span> …
+        </div>
+
+        <div class="inputrow">
+          <input id="profileKey" type="text" placeholder="예: 홍길동 / account-1" />
+          <button id="btnApplyKey">적용</button>
+        </div>
+
+        <div class="row" style="margin-top:12px;">
+          <button id="btnExport">내보내기(JSON)</button>
+          <button id="btnImport">가져오기(JSON)</button>
+          <button class="danger" id="btnReset">초기화</button>
+        </div>
+
+        <div class="note" id="msg"></div>
+      </aside>
+    </div>
+
+    <footer style="padding:12px 14px 16px; border-top:1px solid var(--line); color:var(--muted); font-size:12px; display:flex; flex-wrap:wrap; gap:10px; justify-content:space-between;">
+      <div>노션 임베드: 배포 URL을 <span class="mono">/embed</span>로 추가</div>
+      <div>팁: 여러 기기 공유가 필요하면 서버 저장(Supabase 등)이 필요</div>
+    </footer>
+  </div>
+
+<script>
+(() => {
+  const BASE_KEY = "auth-ticket-counter:v1";
+  const nowISO = () => new Date().toISOString();
+
+  const defaultState = () => ({
+    totalAuth: 0,
+    usedTickets: 0,
+    lastUsedISO: null,
+    lastAction: null, // {type:"AUTH"|"USE", atISO:string}
+  });
+
+  let profile = "";
+  const keyFor = () => profile ? `${BASE_KEY}:${profile}` : BASE_KEY;
+
+  const loadState = () => {
+    try {
+      const raw = localStorage.getItem(keyFor());
+      if (!raw) return defaultState();
+      const s = JSON.parse(raw);
+      return {
+        ...defaultState(),
+        ...s,
+        totalAuth: Number(s.totalAuth || 0),
+        usedTickets: Number(s.usedTickets || 0),
+        lastUsedISO: s.lastUsedISO ?? null,
+        lastAction: s.lastAction ?? null,
+      };
+    } catch {
+      return defaultState();
+    }
+  };
+
+  const saveState = (s) => localStorage.setItem(keyFor(), JSON.stringify(s));
+
+  const earnedTickets = (totalAuth) => Math.floor(totalAuth / 5);
+  const currentAuth = (totalAuth) => ((totalAuth % 5) + 5) % 5;
+  const remainingTickets = (s) => earnedTickets(s.totalAuth) - s.usedTickets;
+
+  const $ = (id) => document.getElementById(id);
+  const elTotalAuth = $("totalAuth");
+  const elCurrentAuth = $("currentAuth");
+  const elEarnedTickets = $("earnedTickets");
+  const elRemainingTickets = $("remainingTickets");
+  const elLastUsed = $("lastUsed");
+  const msg = $("msg");
+
+  const btnAuth = $("btnAuth");
+  const btnUse = $("btnUse");
+  const btnUndo = $("btnUndo");
+  const btnReset = $("btnReset");
+  const btnExport = $("btnExport");
+  const btnImport = $("btnImport");
+
+  const profileKey = $("profileKey");
+  const btnApplyKey = $("btnApplyKey");
+
+  let state = loadState();
+
+  function formatKR(iso) {
+    if (!iso) return "없음";
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return "없음";
+    return d.toLocaleString("ko-KR", {
+      year:"numeric", month:"2-digit", day:"2-digit",
+      hour:"2-digit", minute:"2-digit", second:"2-digit"
+    });
+  }
+
+  function render() {
+    const earned = earnedTickets(state.totalAuth);
+    const cur = currentAuth(state.totalAuth);
+    const rem = remainingTickets(state);
+
+    elTotalAuth.textContent = String(state.totalAuth);
+    elCurrentAuth.textContent = String(cur);
+    elEarnedTickets.textContent = String(earned);
+    elRemainingTickets.textContent = String(Math.max(0, rem));
+    elLastUsed.textContent = formatKR(state.lastUsedISO);
+
+    btnUse.disabled = rem <= 0;
+    btnUndo.disabled = !state.lastAction;
+  }
+
+  function doAuth() {
+    state.totalAuth += 1;
+    state.lastAction = { type: "AUTH", atISO: nowISO() };
+    saveState(state);
+    msg.textContent = "";
+    render();
+  }
+
+  function doUse() {
+    const rem = remainingTickets(state);
+    if (rem <= 0) {
+      msg.textContent = "남은 티켓이 0이라 사용할 수 없습니다.";
+      render();
+      return;
+    }
+    state.usedTickets += 1;
+    state.lastUsedISO = nowISO();
+    state.lastAction = { type: "USE", atISO: state.lastUsedISO };
+    saveState(state);
+    msg.textContent = "";
+    render();
+  }
+
+  function undo() {
+    if (!state.lastAction) return;
+
+    if (state.lastAction.type === "AUTH") {
+      state.totalAuth = Math.max(0, state.totalAuth - 1);
+    } else if (state.lastAction.type === "USE") {
+      state.usedTickets = Math.max(0, state.usedTickets - 1);
+      state.lastUsedISO = null; // 간단 버전: 히스토리를 저장하지 않으므로 마지막 사용일은 비움
+    }
+    state.lastAction = null;
+    saveState(state);
+    msg.textContent = "";
+    render();
+  }
+
+  function resetAll() {
+    const ok = confirm("정말 초기화할까요? (총 인증/사용 티켓/사용일시가 모두 초기화됩니다)");
+    if (!ok) return;
+    state = defaultState();
+    saveState(state);
+    msg.textContent = "초기화했습니다.";
+    render();
+  }
+
+  async function exportJSON() {
+    try {
+      const payload = { profile, key: keyFor(), state };
+      await navigator.clipboard.writeText(JSON.stringify(payload, null, 2));
+      msg.textContent = "클립보드에 JSON을 복사했습니다.";
+    } catch {
+      msg.textContent = "복사에 실패했습니다. 콘솔에서 확인하세요.";
+      console.log("EXPORT", { profile, key: keyFor(), state });
+    }
+  }
+
+  function importJSON() {
+    const raw = prompt("가져올 JSON을 붙여넣으세요:");
+    if (!raw) return;
+    try {
+      const parsed = JSON.parse(raw);
+      const incoming = parsed.state ?? parsed;
+      state = {
+        ...defaultState(),
+        ...incoming,
+        totalAuth: Number(incoming.totalAuth || 0),
+        usedTickets: Number(incoming.usedTickets || 0),
+        lastUsedISO: incoming.lastUsedISO ?? null,
+        lastAction: null,
+      };
+      saveState(state);
+      msg.textContent = "가져오기를 완료했습니다.";
+      render();
+    } catch {
+      msg.textContent = "JSON 파싱 실패: 형식을 확인해주세요.";
+    }
+  }
+
+  function applyProfileKey() {
+    profile = (profileKey.value || "").trim();
+    state = loadState();
+    saveState(state);
+    msg.textContent = profile ? `프로필 키 적용: ${profile}` : "프로필 키 비움(기본 저장소)";
+    render();
+  }
+
+  btnAuth.addEventListener("click", doAuth);
+  btnUse.addEventListener("click", doUse);
+  btnUndo.addEventListener("click", undo);
+  btnReset.addEventListener("click", resetAll);
+  btnExport.addEventListener("click", exportJSON);
+  btnImport.addEventListener("click", importJSON);
+  btnApplyKey.addEventListener("click", applyProfileKey);
+
+  render();
+})();
+</script>
+</body>
+</html>
